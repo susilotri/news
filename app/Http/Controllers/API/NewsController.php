@@ -2,27 +2,30 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Events\NewsEvent;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ResponseResource;
+use App\Jobs\CommentsQueue;
 use App\Models\News;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\ResourceResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\Session\Flash\FlashBag;
-
-use function PHPUnit\Framework\returnSelf;
 
 class NewsController extends Controller
 {
 
     public function index(Request $request)
     {
+        
        $news =  News::when($request->has('limit') && $request->limit !== null, function($q) use($request){
             $q->limit($request->limit)->offset($request->offset);
         })->orderBy('created_at', 'desc')->get();
 
         if(!$news) return response(['status' => false, 'message' => 'Not Found'], 404);
+
         return response(['status' => true, 'message' => [
             'data' => $news,
             'offset' => $request->offset,
@@ -35,6 +38,7 @@ class NewsController extends Controller
         $role_user = Auth::user()->role;
         if($role_user != 1) return response(['status' => false, 'message' => 'Unautorized'], 401);
         $image_path = null;
+        $activity = 'create';
         $validator = Validator::make($request->all(), [
             'title' => 'required',
             'image' => 'image|mimes:jpg,png,jpeg|max:2048',
@@ -53,6 +57,11 @@ class NewsController extends Controller
                 'content' => $request->content,
                 'author' => $request->author
             ]);
+            if($id):
+                $activity = 'update';
+            endif;
+            event(new NewsEvent($news->id, $activity, Auth::user()->id));
+
             return response(['status' => true, 'message' => $news]);
         } catch (Exception $e) {
             return response(['status' => false, 'message' => $e->getMessage()], 500);
@@ -66,10 +75,12 @@ class NewsController extends Controller
         if(!$news) return response(['status' => false, 'message' => 'News Not Found'], 404);
 
         $news->delete();
-        return response(['status' => true, 'message' => 'News Deleted']);
+        event(new NewsEvent($news->id, 'delete', Auth::user()->id));
+        
+        return response(['status' => true, 'message' => 'News Deleted successfully']);
     }
 
-    public function detail($id)
+    public function show($id)
     {
         $news = News::findOrFail($id);
         $comments = $news->Comments()->get()->toArray();
@@ -82,5 +93,30 @@ class NewsController extends Controller
                 'commnets' => $comments
             ]
         ]]);
+    }
+
+    public function comment(Request $request)
+    {
+        $validator = Validator::make($request->all(),[
+            'news_id' => 'required',
+            'content' => 'required'
+        ]);
+        if($validator->fails()) return response(['status' => false, 'message' => $validator->errors()], 400);
+        
+        $user = Auth::user();
+        try{
+            $data = [
+                'news_id' => $request->news_id,
+                'content' => $request->content,
+                'name' => $user->name,
+                'email' => $user->email,
+            ];
+            CommentsQueue::dispatch($data);
+            return response(['status' => true, 'message' => 'Ok']);
+        }catch(Exception $e){
+            return response(['status'=> false, 'message' => $e->getMessage()], 500);
+        }
+
+
     }
 }
