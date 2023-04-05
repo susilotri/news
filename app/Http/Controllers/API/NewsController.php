@@ -84,11 +84,10 @@ class NewsController extends Controller
 
     public function show($id)
     {
-        $news = News::findOrFail($id);
-        $comments = $news->Comments()->get()->toArray();
-
+        $news = News::find($id);
         if(!$news) return response(['status' => false, 'message' => 'News Not Found'], 404);
 
+        $comments = $news->Comments()->get()->toArray();
         return response(['status' => false, 'message' => [
             'data' => [
                 'news' => $news,
