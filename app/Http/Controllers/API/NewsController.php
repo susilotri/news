@@ -47,9 +47,11 @@ class NewsController extends Controller
         ]);
         if ($validator->fails()) return response(['status' => false, 'message' => $validator->errors()], 400);
         try {
-            if($request->has('file'))
+            if($request->has('image')):
                 $image_path = $request->file('image')->store('image', 'public');
+            endif;
 
+            
             $news =  News::updateOrCreate(['id' => $id],[
                 'title' => $request->title,
                 'slug' => Str::slug($request->title),

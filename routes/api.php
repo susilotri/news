@@ -18,9 +18,10 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [UserController::class, 'login']);
 
 Route::middleware(['auth:api'])->group(function () {
-    Route::post('/news', [NewsController::class, 'index']);
+    Route::get('/news', [NewsController::class, 'index']);
     Route::post('/news/add', [NewsController::class, 'store']);
     Route::post('/news/{id}', [NewsController::class, 'store']);
     Route::post('/news/{id}/{slug}', [NewsController::class, 'show']);
+    Route::delete('/news/{id}', [NewsController::class, 'delete']);
     Route::post('/comment/add', [NewsController::class, 'comment']);
 });
